@@ -2,7 +2,8 @@
 
 # Ideas de [codenautas](codenautas.com/ideas)
 
-  * [Por qué no usar *id* autonuméricos](no-usar-auto-id)
+  * [Por qué no usar *id* autonuméricos](no-usar-auto-id.md)
+  * [¿Cómo mantenera actualizada la estructura de la base de datos?](mantener-actualizada-estructura-db.md)
 
 ## feedback
 
