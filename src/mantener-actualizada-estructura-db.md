@@ -88,3 +88,6 @@ y utilizar esos tags para ir haciendo las verificaciones automáticas.
 
 [backend-plus]: https://github.com/codenautas/backend-plus
 [1]: https://stackoverflow.com/a/2179304/5203271
+
+Ver Liquibase, una herramienta de versionado de DBs
+http://www.liquibase.org/
