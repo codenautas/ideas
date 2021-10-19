@@ -1,9 +1,3 @@
-<style>
-.war li{
-    list-style-image: url(warning.png)
-}
-</style>
-
 # Por qué no usar *id* autonuméricos en las bases de datos
 
 En este texto vamos a intentar anotar las **razones** por las cuales se podría decidir 
@@ -30,10 +24,8 @@ o la [*CUIT*](https://es.wikipedia.org/wiki/Clave_%C3%9Anica_de_Identificaci%C3%
 en la tabla clientes o el legajo del empleado en la tabla de empleados), 
 hay más razones para no usar un *id autonumérico*:
 
-<div class=war>
-
-  * Al agregar un *id* se está agregando una [*clave candidata*](https://es.wikipedia.org/wiki/Llave_candidata) 
-    a la tabla, ambas la *clave natural* y el *id* son *claves candidatas*, eso agrega complegidad al modelo de datos.
+![waring](warning.png) Al agregar un *id* se está agregando una [*clave candidata*](https://es.wikipedia.org/wiki/Llave_candidata) 
+    a la tabla, ambas la *clave natural* y el *id* son *claves candidatas*, eso agrega complejidad al modelo de datos.
     Este problema puede empeorar si no se designa la *clave candidata* como 
     [*clave única*](https://es.wikipedia.org/wiki/Clave_primaria#Definiendo_claves_%C3%BAnicas) 
     dentro de la base de datos.
@@ -57,7 +49,7 @@ Podemos encontrar las siguientes ventajeas de orden práctico de usar claves nat
     luego se juntarán las bases de datos en un sistema centralizdo o distribuido pero coordinado. 
     Si por ejemplo una misma empresa es cliente en dos sucursales distintas,
     al unir o coordinar las bases de datos tendrá que haber un único registro para ese cliente,
-    si el sistema de cada sucursal asignó un id autonumérico es probable que ese id se distinto 
+    si el sistema de cada sucursal asignó un id autonumérico es probable que ese id sea distinto 
     en cada sistema y al unificar habrá que renumerar todos los registros relacionados 
     (ventas, presupuestos, etc) en alguna de las dos sucursales.
   * Se le puede pedir a algún usuario experto que vaya adelantando tiempo 
@@ -87,4 +79,3 @@ Podemos encontrar las siguientes ventajeas de orden práctico de usar claves nat
     "qué cliente tiene tal CUIT" y podrá ir a buscarlo a algún lugar, pero no a qué cliente se 
     le asignó tal id porque ese id solo tiene sentido dentro del sistema).
 
-</div>
