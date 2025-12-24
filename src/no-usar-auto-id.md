@@ -1,7 +1,7 @@
 # Por qué no usar *id* autonuméricos en las bases de datos
 
 En este texto vamos a intentar anotar las **razones** por las cuales se podría decidir 
-**no usar un id autonumérico**.
+**no usar un id autonumérico** (en donde no deberían usarse).
 
 ## Por qué mucha gente usa los *id* autonuméricos
 
@@ -78,4 +78,26 @@ Podemos encontrar las siguientes ventajeas de orden práctico de usar claves nat
     más información que los id autonuméricos (se le puede preguntar en voz alta a un usuario 
     "qué cliente tiene tal CUIT" y podrá ir a buscarlo a algún lugar, pero no a qué cliente se 
     le asignó tal id porque ese id solo tiene sentido dentro del sistema).
+
+## Al escribir casos de prueba
+
+Si bien la escritura de casos de prueba debe cumplir con todas las exigencias que cumple el resto del código
+(reducir la duplicación, abstraer conceptos, encapsular, etc...), 
+es común que los conjuntos de prueba se escriban directamente en SQL[^1]. 
+
+En esos casos podríamos terminar con algo como:
+
+```sql
+INSERT INTO proveedores (nombre_proveedor) VALUES ('Proveedor Prueba 1');
+INSERT INTO grupos (nombre_grupo) VALUES ('Grupo Prueba 1');
+INSERT INTO grupos (nombre_grupo) VALUES ('Grupo Prueba 2');
+
+INSERT INTO productos (nombre_producto, id_grupo, id_proveedor)
+  SELECT 'Producto Prueba 1', 
+    (SELECT id_grupo FROM grupos WHERE nombre_grupo = 'Grupo Prueba 1'),
+    (SELECT id_proveedor FROM proveedores WHERE nombre_proveedor = 'Proveedor Prueba 1');
+```
+
+
+
 

@@ -11,6 +11,8 @@ Por ejemplo para codificar países una buena opción es utilizar el
 código [ISO 3166](https://es.wikipedia.org/wiki/ISO_3166-1),
 aún cuando ese código no signifique mucho en la organización. 
 
+**En la teoría** Joe Celko tiene un capítulo en su libro _Joe Celko's data and databases: concepts in practice_ ISBN 1558604324
+
 ## Claves compuestas
 
 A veces la clave natural pueden ser un conjunto de camos.
