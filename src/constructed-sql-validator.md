@@ -222,3 +222,44 @@ PKs simples y compuestas se manejan igual (siempre son `string[]`). Una `UNIQUE 
 - Tratamiento de subqueries y CTEs en el árbol de joins.
 - Diseño de cache de AST (necesario sólo si el overhead aparece como problema; mientras tanto, sin cache).
 - Si la lib se integra al ecosistema `codenautas` o se publica como paquete independiente sin ese prefijo.
+
+## Validador - CLI
+
+Un validador CLI debería parsear un programa (en varios archivos) 
+en un lenguaje de programación host validando SQL embebido.
+
+El host podría ser TypeScript, JavaScript, C++, C#, 
+Ocaml, Haskel, Pascal, Rust, zig, etc...
+
+### Ejemplo TS:
+
+```ts
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados e 
+            left join asignaciones a using (empleado)
+            left join trimestres t using (trimestre)
+        GROUP BY count(*)
+        HAVING count(*) > $1
+    `;
+```
+
+### Ejemplo C#:
+
+```cs
+// sql-hints-next join(e, t, allow-non-pk)
+var sqlAsignacionesVacias = """
+    SELECT empleado, trimestre
+        FROM empleados e
+            cross join trimestres t -- allow-non-pk
+            left join asignaciones a using (empleado, trimestre)
+        WHERE
+    """;
+```
+
+### Parámetros
+
+El CLI podría tomar la estructura evaluando la parte del código 
+donde está definido el catalog (o schema) de las tablas que usa el sistema.
+Si el CLI no pudiera ese dato podría pasarse como parámetro del CLI 
+en un archivo .JSON.
