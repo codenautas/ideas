@@ -4,13 +4,15 @@
 
 ## 1. Motivación
 
-`backend-plus` se inició en 2011, en JavaScript puro, antes de que TypeScript estuviera disponible. Cumple bien su objetivo funcional (CRUDs genéricos basados en grillas, manejo general de endpoints, procedimientos con lógica custom), pero acarrea quince años de deuda **conceptual**, no solo técnica:
+Los frameworks que generan backends y frontends completos a partir de la descripción de tablas y relaciones (CRUDs genéricos basados en grillas, manejo general de endpoints, procedimientos con lógica custom) suelen acumular, con los años, un tipo particular de deuda: no técnica en el sentido de "código viejo", sino **conceptual** — decisiones de diseño que tenían sentido en el momento en que se tomaron, pero que hoy se harían distinto porque el ecosistema del lenguaje maduró.
+
+Los síntomas típicos de esa deuda conceptual son:
 
 - Código duplicado en varios lugares para representar el mismo concepto.
-- El single source of truth (SSOT) existe, pero no está fuertemente tipado.
-- No hubo, desde el diseño original, objetivos explícitos de DRY, KISS, ni de grado de SSOT.
+- Un single source of truth (SSOT) que existe a nivel de metadata, pero no está fuertemente tipado.
+- Ausencia, desde el diseño original, de objetivos explícitos de DRY, KISS, y de grado de SSOT.
 
-El objetivo del framework nuevo es el **mismo objetivo funcional** que `backend-plus`, pero rearquitecturado desde el principio con objetivos de diseño explícitos: minimizar código duplicado, maximizar SSOT, tipado fuerte de punta a punta, seguridad y simplicidad.
+El objetivo de este framework es lograr ese mismo tipo de resultado funcional, pero diseñado desde el principio con objetivos explícitos: minimizar código duplicado, maximizar SSOT, tipado fuerte de punta a punta, seguridad y simplicidad.
 
 ## 2. Principio central: Single Source of Truth (SSOT)
 
@@ -36,7 +38,7 @@ Lo que el framework debe eliminar es la repetición **técnica**: el mismo campo
 - Esas definiciones deben ser **serializables** (representables como JSON plano). Esto implica que no pueden contener funciones ni lógica embebida directamente.
 - Cuando una entidad o campo necesita comportamiento especial (validación custom, cálculo, hook), ese comportamiento se referencia por **nombre** (string identificador) dentro de la definición, y se resuelve contra una implementación registrada aparte, fuera de la definición serializable.
   - Pendiente de decidir: si ese registro de comportamientos nombrados es centralizado o distribuido por módulo/feature.
-  - Pendiente de decidir: catálogo completo de "tipos de comportamiento especial" más allá de validación y formato (cálculo de valores derivados, hooks pre/post, permisos dinámicos, etc.) — cuáles ya existen en `backend-plus` y cuáles son nuevos.
+  - Pendiente de decidir: catálogo completo de "tipos de comportamiento especial" más allá de validación y formato (cálculo de valores derivados, hooks pre/post, permisos dinámicos, etc.).
 
 ### 2.4 Isomorfismo navegador/servidor
 
@@ -55,7 +57,7 @@ Un tipo, en este framework, no es un tipo del lenguaje de programación (`number
 
 Una entidad es cualquier cosa que puede representarse como grilla en la interfaz. Puede ser:
 - Una tabla física en la base de datos.
-- Una vista o query sobre varias tablas (grilla virtual, análoga a las de `backend-plus`).
+- Una vista o query sobre varias tablas (grilla virtual).
 - Un dato sin persistencia SQL (por ejemplo, proveniente de una API externa o calculado en memoria).
 
 **Atributos a nivel de entidad:**
