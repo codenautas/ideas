@@ -1,5 +1,7 @@
 # Definición de entidades — ejemplo: profesores y materias
 
+⚠️ Estado del documento: BORRADOR. TODO PODRÍA CAMBIAR. La idea subyacente es lo único válido. ⚠️
+
 > Bajada a tierra de [SSOTIGAD](../SSOTIGAD.md), sección 3.1 (Entidades), cumpliendo la forma de definición de la sección 2.3 (variables tipadas del lenguaje, serializables, comportamientos referenciados por nombre). Los ejemplos están en TypeScript siguiendo la conclusión provisoria de la sección 5; la decisión de lenguaje sigue abierta.
 
 ## 1. Convenciones
