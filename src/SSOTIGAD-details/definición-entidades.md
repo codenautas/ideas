@@ -4,7 +4,7 @@
 
 ## 1. Convenciones
 
-- Lo que es parte del **framework** va en inglés (`defineSystem`, `FieldDef`, `pk`, `fks`); lo que es parte de la **aplicación** va en castellano (`profesores`, `horas_semanales`).
+- Lo que es parte del **framework** va en inglés (`FieldDef`, `ModelsDef`, `pk`, `fks`); lo que es parte de la **aplicación** va en castellano (`profesores`, `horas_semanales`).
 - Los nombres de la aplicación (tipos, modelos, campos, entidades, comportamientos) van en **snake_case en minúsculas**, y el mismo nombre se usa idéntico en SQL — no hay derivación camelCase↔snake_case.
 - Los **labels** van en minúsculas y solo se declaran cuando difieren del nombre del campo con los guiones bajos reemplazados por espacios. Ejemplo: `horas_semanales` no necesita label ("horas semanales" ya es correcto); `telefono` sí, por el acento ("teléfono").
 
@@ -16,19 +16,30 @@ Todo el SSOT de la aplicación se construye en un único objeto **sistema**, por
 2. **Modelos**: la definición de los campos de cada record. En esta capa también viven los **comportamientos** (funciones nombradas).
 3. **Entidades**: a partir de un modelo agregan pk, fks, y más adelante subgrillas.
 
+El sistema es **un objeto, no una API**: no hay builder ni cadena de llamadas — llamar funciones no se parece en nada a un SSOT serializable. Cada capa es una constante independiente, tipada contra las anteriores con `satisfies` y parámetros de tipo, y el sistema simplemente las ensambla:
+
 ```ts
-const sistema = defineSystem()
-    .types({/* sección 3 */})
-    .typeMappings({/* sección 3 */})
-    .models({/* sección 4 */})
-    .behaviors({/* sección 5 */})
-    .entities({/* sección 6 */});
+// cada capa es una constante aparte, tipada contra las anteriores
+const types        = {/* sección 3 */} as const satisfies TypesDef;
+const typeMappings = {/* sección 3 */} as const satisfies TypeMappingsDef<typeof types>;
+const models       = {/* sección 4 */} as const satisfies ModelsDef<typeof types>;
+const behaviors    = {/* sección 5 */} satisfies BehaviorsDef;
+const entities     = {/* sección 6 */} as const satisfies EntitiesDef<typeof models>;
+
+// el sistema las ensambla: es un objeto más
+const system = {
+    types,
+    typeMappings,
+    models,
+    behaviors,
+    entities,
+} satisfies SystemDef<typeof types, typeof models /* ...las demás capas */>;
 ```
 
 Dos propiedades de esta forma:
 
 - Todas las capas salvo `behaviors` son JSON plano: son la parte serializable que pide 2.3. La capa `behaviors` es exactamente el "registro aparte" de comportamientos nombrados — acá deja de ser un conjunto de funciones `registrarX(...)` sueltas y pasa a ser un mapa más del sistema.
-- Las referencias por nombre hacia capas **anteriores** se verifican en compilación vía `keyof` (un error de tipeo no compila y el editor autocompleta). Las referencias hacia **adelante** (por ejemplo `validation: 'email'` en un tipo, que apunta a un comportamiento de una capa posterior) se validan al construir el sistema, no en compilación. Ver cuestión abierta 8.4.
+- Las referencias por nombre hacia capas **anteriores** se verifican en compilación vía `keyof` (un error de tipeo no compila y el editor autocompleta). Las referencias hacia **adelante** (por ejemplo `validation: 'email'` en un tipo, que apunta a un comportamiento de una capa posterior) se validan al cargar el sistema en runtime, no en compilación. Ver cuestión abierta 8.4.
 
 ## 3. Capa 1: tipos de dominio y sus representaciones
 
@@ -37,19 +48,26 @@ El dato más importante de un campo es su tipo de dominio, y es un **string**. L
 Un tipo de dominio no significa nada por sí solo ("texto" no dice nada): lo que lo define son sus **representaciones** — a qué tipo JS, Postgres, SqlServer, etc. se mapea. Esos mapeos van en una capa propia, con forma `Record<Representation, Record<TypeName, string>>`:
 
 ```ts
-    .types({
-        codigo:          {},
-        texto:           {},
-        email:           {validation: 'email'},
-        fecha:           {},
-        booleano:        {},
-        entero:          {},
-        horas_semanales: {min: 1, max: 60},
-    })
-    .typeMappings({
-        jsType:       {codigo: 'string', texto: 'string', email: 'string', fecha: 'Date', booleano: 'boolean', entero: 'number', horas_semanales: 'number'},
-        postgresType: {codigo: 'text',   texto: 'text',   email: 'text',   fecha: 'date', booleano: 'boolean', entero: 'integer', horas_semanales: 'integer'},
-    })
+// framework
+type TypeDef = {min?: number, max?: number, validation?: string};
+type TypesDef = Record<string, TypeDef>;
+type TypeMappingsDef<Types extends TypesDef> = Record<string, Record<keyof Types & string, string>>;
+
+// aplicación
+const types = {
+    codigo:          {},
+    texto:           {},
+    email:           {validation: 'email'},
+    fecha:           {},
+    booleano:        {},
+    entero:          {},
+    horas_semanales: {min: 1, max: 60},
+} as const satisfies TypesDef;
+
+const typeMappings = {
+    jsType:       {codigo: 'string', texto: 'string', email: 'string', fecha: 'Date', booleano: 'boolean', entero: 'number', horas_semanales: 'number'},
+    postgresType: {codigo: 'text',   texto: 'text',   email: 'text',   fecha: 'date', booleano: 'boolean', entero: 'integer', horas_semanales: 'integer'},
+} as const satisfies TypeMappingsDef<typeof types>;
 ```
 
 Por qué el mapeo agrupado por representación, y no cada representación adentro de cada tipo (`codigo: {jsType: 'string', postgresType: 'text', ...}`):
@@ -68,7 +86,7 @@ Un modelo es el mapa nombre de campo → definición de campo. Las entidades se 
 La definición de campo (framework):
 
 ```ts
-type FieldDef<Types> = {
+type FieldDef<Types extends TypesDef> = {
     type: keyof Types & string;
     label?: string;          // si falta: el nombre del campo, con "_" → " "
     description?: string;
@@ -79,34 +97,36 @@ type FieldDef<Types> = {
     inComboBox?: true;
     computed?: {method: string};
 };
+
+type ModelsDef<Types extends TypesDef> = Record<string, Record<string, FieldDef<Types>>>;
 ```
 
 Los modelos del ejemplo:
 
 ```ts
-    .models({
-        materias: {
-            materia:         {type: 'codigo', description: 'código de la materia en el plan de estudios'},
-            nombre:          {type: 'texto', isName: true},
-            horas_semanales: {type: 'horas_semanales', inComboBox: true},
-        },
-        profesores: {
-            profesor:        {type: 'codigo', description: 'legajo docente'},
-            apellido:        {type: 'texto'},
-            nombres:         {type: 'texto'},
-            nombre_completo: {type: 'texto', isName: true, computed: {method: 'nombre_completo'}},
-            email:           {type: 'email', columnGroup: 'contacto'},
-            telefono:        {type: 'texto', label: 'teléfono', columnGroup: 'contacto'},
-            fecha_ingreso:   {type: 'fecha', label: 'ingreso', description: 'fecha de ingreso a la institución', defaultValue: {method: 'fecha_de_hoy'}},
-            activo:          {type: 'booleano', defaultValue: true},
-        },
-        asignacion_profesores: {
-            profesor:      {type: 'codigo'},
-            materia:       {type: 'codigo'},
-            puede_dictarla: {type: 'booleano'},
-            prioridad:     {type: 'entero', nullable: true},
-        },
-    })
+const models = {
+    materias: {
+        materia:         {type: 'codigo', description: 'código de la materia en el plan de estudios'},
+        nombre:          {type: 'texto', isName: true},
+        horas_semanales: {type: 'horas_semanales', inComboBox: true},
+    },
+    profesores: {
+        profesor:        {type: 'codigo', description: 'legajo docente'},
+        apellido:        {type: 'texto'},
+        nombres:         {type: 'texto'},
+        nombre_completo: {type: 'texto', isName: true, computed: {method: 'nombre_completo'}},
+        email:           {type: 'email', columnGroup: 'contacto'},
+        telefono:        {type: 'texto', label: 'teléfono', columnGroup: 'contacto'},
+        fecha_ingreso:   {type: 'fecha', label: 'ingreso', description: 'fecha de ingreso a la institución', defaultValue: {method: 'fecha_de_hoy'}},
+        activo:          {type: 'booleano', defaultValue: true},
+    },
+    asignacion_profesores: {
+        profesor:       {type: 'codigo'},
+        materia:        {type: 'codigo'},
+        puede_dictarla: {type: 'booleano'},
+        prioridad:      {type: 'entero', nullable: true},
+    },
+} as const satisfies ModelsDef<typeof types>;
 ```
 
 - `nombre_completo` es una columna calculada (3.1); el cálculo no está acá, solo su nombre.
@@ -121,17 +141,17 @@ Los modelos del ejemplo:
 Un mapa por clase de comportamiento — no funciones `registrar...` sueltas. Es la única capa con funciones, o sea la única no serializable: exactamente el "registro aparte" que pide 2.3.
 
 ```ts
-    .behaviors({
-        calculations: {
-            nombre_completo: (row: {apellido: string, nombres: string}) => `${row.apellido}, ${row.nombres}`,
-        },
-        defaultValues: {
-            fecha_de_hoy: () => today(),
-        },
-        validations: {
-            email: (value: string) => /* ... */,
-        },
-    })
+const behaviors = {
+    calculations: {
+        nombre_completo: (row: {apellido: string, nombres: string}) => `${row.apellido}, ${row.nombres}`,
+    },
+    defaultValues: {
+        fecha_de_hoy: () => today(),
+    },
+    validations: {
+        email: (value: string) => /* ... */,
+    },
+} satisfies BehaviorsDef;
 ```
 
 Las clases de comportamiento (`calculations`, `defaultValues`, `validations`) son vocabulario del framework; el catálogo completo es un pendiente de 2.3. El tipado a mano del parámetro `row` debería poder derivarse del modelo — ver cuestión abierta 8.5.
@@ -141,18 +161,18 @@ Las clases de comportamiento (`calculations`, `defaultValues`, `validations`) so
 Una entidad toma un modelo por nombre y agrega lo relacional: pk, fks (y más adelante, subgrillas).
 
 ```ts
-    .entities({
-        materias:   {model: 'materias', pk: ['materia']},
-        profesores: {model: 'profesores', pk: ['profesor']},
-        asignacion_profesores: {
-            model: 'asignacion_profesores',
-            pk: ['profesor', 'materia'],
-            fks: [
-                {fields: ['profesor'], references: 'profesores'},
-                {fields: ['materia'],  references: 'materias'},
-            ],
-        },
-    });
+const entities = {
+    materias:   {model: 'materias', pk: ['materia']},
+    profesores: {model: 'profesores', pk: ['profesor']},
+    asignacion_profesores: {
+        model: 'asignacion_profesores',
+        pk: ['profesor', 'materia'],
+        fks: [
+            {fields: ['profesor'], references: 'profesores'},
+            {fields: ['materia'],  references: 'materias'},
+        ],
+    },
+} as const satisfies EntitiesDef<typeof models>;
 ```
 
 - `pk` y `fields` se tipan como `keyof` del modelo elegido: una pk con un campo inexistente no compila. Es la razón de definir los modelos antes que las entidades.
@@ -162,9 +182,9 @@ Una entidad toma un modelo por nombre y agrega lo relacional: pk, fks (y más ad
 
 ## 7. Qué se deriva automáticamente
 
-Del objeto `sistema`, sin ninguna mención adicional a ningún campo (criterio 2.1), el framework deriva:
+Del objeto `system`, sin ninguna mención adicional a ningún campo (criterio 2.1), el framework deriva:
 
-- **Tipos del lenguaje**: `type Materia = RowOf<typeof sistema, 'materias'>` produce `{materia: string, nombre: string, horas_semanales: number}` (vía el `jsType` de cada tipo de dominio) — es la razón de las tres condiciones de la sección 5.1. `prioridad` se deriva como `number | null` por el `nullable`.
+- **Tipos del lenguaje**: `type Materia = RowOf<typeof system, 'materias'>` produce `{materia: string, nombre: string, horas_semanales: number}` (vía el `jsType` de cada tipo de dominio) — es la razón de las tres condiciones de la sección 5.1. `prioridad` se deriva como `number | null` por el `nullable`.
 - **SQL**: `CREATE TABLE` con los tipos físicos del `typeMappings` de la base elegida, la PK compuesta y las FKs; y los `INSERT`/`SELECT`/`UPDATE` del CRUD.
 - **Endpoints CRUD** para las tres entidades.
 - **Grilla**: columnas con sus labels (declarados o derivados del nombre), tooltips desde las descripciones, sobretítulo "contacto" agrupando email y teléfono, edición inline.
@@ -181,8 +201,8 @@ Decisiones provisorias a confirmar, y problemas nuevos que aparecieron:
 1. **Parámetros del tipo solo en el catálogo**: `horas_semanales` (1–60) vive en la capa de tipos, estilo "Edad" (2.5). ¿Qué pasa cuando un campo necesita un rango puntual no reutilizable: se crea igual un tipo, o se admite override por campo? Es la pregunta de composición de 2.5.
 2. **Repetición en los mapeos físicos**: `codigo`, `texto` y `email` mapean idéntico en todas las representaciones. Es repetición técnica (2.2) que la composición de tipos (2.5) debería eliminar — por ejemplo, "email se representa como texto".
 3. **NOT NULL por defecto**: decidido provisoriamente (sección 4). Confirmar.
-4. **Orden de capas vs. referencias por nombre**: los tipos referencian validaciones (`validation: 'email'`) y los modelos referencian cálculos, pero `behaviors` viene después — esas referencias hacia adelante se validan en build, no en compilación. ¿Es aceptable, o conviene reordenar capas (behaviors antes de models) sacrificando otra cosa?
-5. **Tipado de los comportamientos contra los modelos**: el `row` de `nombre_completo` debería tiparse solo (derivado del modelo profesores) y no a mano. Requiere resolver el punto 4 o ligarlo en build.
+4. **Orden de declaración vs. referencias por nombre**: los tipos referencian validaciones (`validation: 'email'`) y los modelos referencian cálculos, pero `behaviors` se declara después — esas referencias hacia adelante se validan al cargar el sistema, no en compilación. La alternativa es declarar `behaviors` antes que `models` (y pasarlo como parámetro de tipo a `ModelsDef`) para chequear los nombres de método en compilación, pero eso impide lo inverso: tipar el `row` de cada cálculo a partir del modelo. Hay una circularidad genuina; hay que elegir qué lado se chequea en compilación.
+5. **Tipado de los comportamientos contra los modelos**: el `row` de `nombre_completo` debería tiparse solo (derivado del modelo profesores) y no a mano. Es el otro lado de la circularidad del punto 4.
 6. **`references` tipado contra la propia capa**: idealmente `references: 'profesores'` sería `keyof` del objeto de entidades que se está definiendo — autorreferencia que hay que ver si TypeScript permite expresar razonablemente.
 7. **¿`computed`, `isName` e `inComboBox` son del modelo o de la entidad?**: los puse en el modelo (FieldDef), pero puede argumentarse que son cuestión de la entidad (cómo se muestra cuando se la referencia). Relacionado con el pendiente de 2.3 sobre dónde viven los comportamientos.
 8. **Modelo↔entidad casi 1:1**: en este ejemplo cada entidad usa un modelo homónimo. ¿Conviene un atajo para ese caso, reservando la separación para vistas/variantes?
