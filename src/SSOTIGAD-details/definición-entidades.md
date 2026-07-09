@@ -8,38 +8,41 @@
 - Los nombres de la aplicación (tipos, modelos, campos, entidades, comportamientos) van en **snake_case en minúsculas**, y el mismo nombre se usa idéntico en SQL — no hay derivación camelCase↔snake_case.
 - Los **labels** van en minúsculas y solo se declaran cuando difieren del nombre del campo con los guiones bajos reemplazados por espacios. Ejemplo: `horas_semanales` no necesita label ("horas semanales" ya es correcto); `telefono` sí, por el acento ("teléfono").
 
-## 2. El objeto sistema, por capas
+## 2. La definición del sistema, por capas
 
-Todo el SSOT de la aplicación se construye en un único objeto **sistema**, por capas, donde cada capa se tipa contra las anteriores:
+La **definición del sistema** es un objeto plano puro (JSON), construido por capas:
 
 1. **Tipos de dominio** (sin tipo no hay nada), con sus representaciones físicas.
-2. **Modelos**: la definición de los campos de cada record. En esta capa también viven los **comportamientos** (funciones nombradas).
+2. **Modelos**: la definición de los campos de cada record.
 3. **Entidades**: a partir de un modelo agregan pk, fks, y más adelante subgrillas.
 
-El sistema es **un objeto, no una API**: no hay builder ni cadena de llamadas — llamar funciones no se parece en nada a un SSOT serializable. Cada capa es una constante independiente, tipada contra las anteriores con `satisfies` y parámetros de tipo, y el sistema simplemente las ensambla:
+Los **comportamientos** (funciones nombradas) no son una capa de la definición: quedan afuera, y la definición los referencia por nombre. El framework SSOTIGAD es el que conecta las dos partes y hace que el sistema funcione.
+
+No hay builder ni cadena de llamadas — llamar funciones no se parece en nada a un SSOT serializable. Cada capa es una constante independiente, tipada con `satisfies`; cada `XxxDef` recibe como parámetro de tipo **solo las capas que necesita**:
 
 ```ts
-// cada capa es una constante aparte, tipada contra las anteriores
+// cada capa es una constante aparte, tipada contra las capas que necesita
 const types        = {/* sección 3 */} as const satisfies TypesDef;
 const typeMappings = {/* sección 3 */} as const satisfies TypeMappingsDef<typeof types>;
 const models       = {/* sección 4 */} as const satisfies ModelsDef<typeof types>;
-const behaviors    = {/* sección 5 */} satisfies BehaviorsDef;
 const entities     = {/* sección 6 */} as const satisfies EntitiesDef<typeof models>;
 
-// el sistema las ensambla: es un objeto más
-const system = {
+// la definición del sistema: un objeto plano puro, 100% serializable
+const systemDef = {
     types,
     typeMappings,
     models,
-    behaviors,
     entities,
-} satisfies SystemDef<typeof types, typeof models /* ...las demás capas */>;
+} satisfies SystemDef<typeof types, typeof models>;
+
+// los comportamientos, aparte: la única parte con funciones (sección 5)
+const behaviors = {/* sección 5 */} satisfies BehaviorsDef;
 ```
 
 Dos propiedades de esta forma:
 
-- Todas las capas salvo `behaviors` son JSON plano: son la parte serializable que pide 2.3. La capa `behaviors` es exactamente el "registro aparte" de comportamientos nombrados — acá deja de ser un conjunto de funciones `registrarX(...)` sueltas y pasa a ser un mapa más del sistema.
-- Las referencias por nombre hacia capas **anteriores** se verifican en compilación vía `keyof` (un error de tipeo no compila y el editor autocompleta). Las referencias hacia **adelante** (por ejemplo `validation: 'email'` en un tipo, que apunta a un comportamiento de una capa posterior) se validan al cargar el sistema en runtime, no en compilación. Ver cuestión abierta 8.4.
+- `systemDef` es JSON plano puro: es la parte serializable que pide 2.3. Los comportamientos son exactamente su "registro aparte" — no funciones `registrarX(...)` sueltas sino un mapa, que la definición referencia por nombre y el framework conecta.
+- Las referencias por nombre hacia capas que participan como parámetro de tipo se verifican en compilación vía `keyof` (un error de tipeo no compila y el editor autocompleta). Las referencias hacia los comportamientos (por ejemplo `validation: 'email'` en un tipo) las valida el framework al conectar definición y comportamientos. Ver cuestión abierta 8.4.
 
 ## 3. Capa 1: tipos de dominio y sus representaciones
 
@@ -136,9 +139,9 @@ const models = {
 
 **Nullability** (decisión provisoria): los campos son **NOT NULL por defecto** y `nullable: true` es la excepción (`prioridad`). Razones: en un modelo de datos típico la mayoría de los campos son obligatorios, y equivocarse por omisión hacia el lado estricto falla temprano y se relaja fácil — lo inverso admite datos malos en silencio. No se diferencia nullable / undefinable / optativo a nivel modelo: en los datos existe un solo concepto (NULL); `undefined` y la opcionalidad aparecen únicamente en tipos derivados de operaciones (por ejemplo, un `Partial` para updates parciales), nunca en el modelo.
 
-## 5. Capa 2 (continuación): comportamientos
+## 5. Los comportamientos, fuera de la definición
 
-Un mapa por clase de comportamiento — no funciones `registrar...` sueltas. Es la única capa con funciones, o sea la única no serializable: exactamente el "registro aparte" que pide 2.3.
+Un mapa por clase de comportamiento — no funciones `registrar...` sueltas. No forma parte de `systemDef`: es exactamente el "registro aparte" que pide 2.3. El framework es el que conecta la definición (que referencia por nombre) con este mapa para hacer funcionar el sistema.
 
 ```ts
 const behaviors = {
@@ -182,9 +185,9 @@ const entities = {
 
 ## 7. Qué se deriva automáticamente
 
-Del objeto `system`, sin ninguna mención adicional a ningún campo (criterio 2.1), el framework deriva:
+De `systemDef` más los comportamientos, sin ninguna mención adicional a ningún campo (criterio 2.1), el framework deriva:
 
-- **Tipos del lenguaje**: `type Materia = RowOf<typeof system, 'materias'>` produce `{materia: string, nombre: string, horas_semanales: number}` (vía el `jsType` de cada tipo de dominio) — es la razón de las tres condiciones de la sección 5.1. `prioridad` se deriva como `number | null` por el `nullable`.
+- **Tipos del lenguaje**: `type Materia = RowOf<typeof systemDef, 'materias'>` produce `{materia: string, nombre: string, horas_semanales: number}` (vía el `jsType` de cada tipo de dominio) — es la razón de las tres condiciones de la sección 5.1. `prioridad` se deriva como `number | null` por el `nullable`.
 - **SQL**: `CREATE TABLE` con los tipos físicos del `typeMappings` de la base elegida, la PK compuesta y las FKs; y los `INSERT`/`SELECT`/`UPDATE` del CRUD.
 - **Endpoints CRUD** para las tres entidades.
 - **Grilla**: columnas con sus labels (declarados o derivados del nombre), tooltips desde las descripciones, sobretítulo "contacto" agrupando email y teléfono, edición inline.
@@ -201,7 +204,7 @@ Decisiones provisorias a confirmar, y problemas nuevos que aparecieron:
 1. **Parámetros del tipo solo en el catálogo**: `horas_semanales` (1–60) vive en la capa de tipos, estilo "Edad" (2.5). ¿Qué pasa cuando un campo necesita un rango puntual no reutilizable: se crea igual un tipo, o se admite override por campo? Es la pregunta de composición de 2.5.
 2. **Repetición en los mapeos físicos**: `codigo`, `texto` y `email` mapean idéntico en todas las representaciones. Es repetición técnica (2.2) que la composición de tipos (2.5) debería eliminar — por ejemplo, "email se representa como texto".
 3. **NOT NULL por defecto**: decidido provisoriamente (sección 4). Confirmar.
-4. **Orden de declaración vs. referencias por nombre**: los tipos referencian validaciones (`validation: 'email'`) y los modelos referencian cálculos, pero `behaviors` se declara después — esas referencias hacia adelante se validan al cargar el sistema, no en compilación. La alternativa es declarar `behaviors` antes que `models` (y pasarlo como parámetro de tipo a `ModelsDef`) para chequear los nombres de método en compilación, pero eso impide lo inverso: tipar el `row` de cada cálculo a partir del modelo. Hay una circularidad genuina; hay que elegir qué lado se chequea en compilación.
+4. **Referencias a comportamientos, ¿chequeadas en compilación?**: los tipos referencian validaciones (`validation: 'email'`) y los modelos referencian cálculos; hoy esas referencias las valida el framework al conectar las partes. La alternativa es declarar `behaviors` antes que `models` y pasarlo como parámetro de tipo a `ModelsDef` (cada Def recibe solo las capas que necesita, así que es posible) para chequear los nombres de método en compilación, pero eso impide lo inverso: tipar el `row` de cada cálculo a partir del modelo. Hay una circularidad genuina; hay que elegir qué lado se chequea en compilación.
 5. **Tipado de los comportamientos contra los modelos**: el `row` de `nombre_completo` debería tiparse solo (derivado del modelo profesores) y no a mano. Es el otro lado de la circularidad del punto 4.
 6. **`references` tipado contra la propia capa**: idealmente `references: 'profesores'` sería `keyof` del objeto de entidades que se está definiendo — autorreferencia que hay que ver si TypeScript permite expresar razonablemente.
 7. **¿`computed`, `isName` e `inComboBox` son del modelo o de la entidad?**: los puse en el modelo (FieldDef), pero puede argumentarse que son cuestión de la entidad (cómo se muestra cuando se la referencia). Relacionado con el pendiente de 2.3 sobre dónde viven los comportamientos.
