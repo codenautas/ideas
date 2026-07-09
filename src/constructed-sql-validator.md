@@ -225,10 +225,10 @@ PKs simples y compuestas se manejan igual (siempre son `string[]`). Una `UNIQUE 
 
 ## Validador - CLI
 
-Un validador CLI debería parsear un programa (en varios archivos) 
+Un validador CLI debería parsear un programa (en varios archivos)
 en un lenguaje de programación host validando SQL embebido.
 
-El host podría ser TypeScript, JavaScript, C++, C#, 
+El host podría ser TypeScript, JavaScript, C++, C#,
 Ocaml, Haskel, Pascal, Rust, zig, etc...
 
 ### Ejemplo TS:
@@ -236,7 +236,7 @@ Ocaml, Haskel, Pascal, Rust, zig, etc...
 ```ts
 var sqlExcesoAsignaciones = `
     SELECT empleado, count(*)
-        FROM empleados e 
+        FROM empleados e
             left join asignaciones a using (empleado)
             left join trimestres t using (trimestre)
         GROUP BY count(*)
@@ -259,7 +259,7 @@ var sqlAsignacionesVacias = """
 
 ### Parámetros
 
-El CLI podría tomar la estructura evaluando la parte del código 
+El CLI podría tomar la estructura evaluando la parte del código
 donde está definido el catalog (o schema) de las tablas que usa el sistema.
-Si el CLI no pudiera ese dato podría pasarse como parámetro del CLI 
+Si el CLI no pudiera ese dato podría pasarse como parámetro del CLI
 en un archivo .JSON.

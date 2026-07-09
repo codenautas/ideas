@@ -1,6 +1,6 @@
 # Control de sentencias SQL en el backend
 
-> Quiero hacer un proyecto con ese título. La idea es verificar errores comunes en los SQL. Por ejemplo. El 99% de las veces cuando uno hace un JOIN quiere que alguna de las dos tablas se acceda por PK. Entonces el sistema debería controlar que sea siempre así o que haya un comentario dentro de la sentencia que indique que esa vez no. 
+> Quiero hacer un proyecto con ese título. La idea es verificar errores comunes en los SQL. Por ejemplo. El 99% de las veces cuando uno hace un JOIN quiere que alguna de las dos tablas se acceda por PK. Entonces el sistema debería controlar que sea siempre así o que haya un comentario dentro de la sentencia que indique que esa vez no.
 
 > Eso se podría hacer como una especie de linter o en el ejecutador.
 
@@ -81,9 +81,9 @@ El riesgo más grande de este tipo de herramientas no es técnico, es social: qu
 * Discutir cómo modelar el catálogo de reglas (tipos, configuración, extensibilidad por el usuario de la lib).
 * Pensar la versión "linter estático" en paralelo, qué cosas sí y qué cosas no se pueden validar sin DB.
 
-> El producto de esta conversación quiero que sea un CLAUDE.md para un futuro proyecto. 
+> El producto de esta conversación quiero que sea un CLAUDE.md para un futuro proyecto.
 
-> La razón vacía no me molesta por ahora. Los metadatos los tengo por fuera (podríamos tenerlos en forma estática, listo para usar en un diccionario multinivel adecuado, para que no sea un lío). De acuerdo en empezarlo en el ejecutador (porque no hay construcción de SQL). 
+> La razón vacía no me molesta por ahora. Los metadatos los tengo por fuera (podríamos tenerlos en forma estática, listo para usar en un diccionario multinivel adecuado, para que no sea un lío). De acuerdo en empezarlo en el ejecutador (porque no hay construcción de SQL).
 
 > Debería incluir los múltiples joins. La PK de `departamento d join empleados e on e.depto = d.depto` es `e.depto, e.emplado` porque ese join se podría joinear con `pedidos p on e.empleado=p.pempleado` y estaría bien (y la PK se agranda) y luego con `cliente c on c.cliente = p.cliente` y estaría bien (y la PK se mantiene)
 
@@ -137,17 +137,17 @@ Si ninguno se cumple → warning, requiere @sql-lint-allow.
 
 ¿Te cierra esta formulación? Si sí, armo el CLAUDE.md con esto como núcleo, más todo lo del andamiaje (parser, motor de reglas, formato del allow, cache, modos, integración con el ejecutador, etc.). Si querés ajustar algo de la regla antes (por ejemplo, ser más estricto en el caso B y exigir cobertura completa de la PK del resultado parcial, no solo de una PK de la nueva tabla), decime y lo incorporo.
 
-> Sí me cierra y agreguemos ser estricto. 
+> Sí me cierra y agreguemos ser estricto.
 
-> Cuando hay un allow la nueva PK debería calcularse automáticamente. Por ejemplo tengo la tabla asingaciones que asigna cada empleado a una sucursal en cada trimestre y quiero saber qué filas faltan en asignación (cuya pk es trimestre, empleado), para sortear la sucursal. 
+> Cuando hay un allow la nueva PK debería calcularse automáticamente. Por ejemplo tengo la tabla asingaciones que asigna cada empleado a una sucursal en cada trimestre y quiero saber qué filas faltan en asignación (cuya pk es trimestre, empleado), para sortear la sucursal.
 
-> Escribiría: 
+> Escribiría:
 ```sql
-SELECT e.empleado, t.trimestre, sortear_sucursal() 
+SELECT e.empleado, t.trimestre, sortear_sucursal()
 from empleado e CROSS JOIN trimestre t --- allow-cross-join
   LEFT JOIN asignaciones a ON e.empleado = a.empleado and t.trimestre = a.trimestre
   WHERE t.trimestre IS NULL
-```  
+```
 
 Apr 26
 Excelente ejemplo, y muestra algo importante: el allow no es solo "ignorá esta verificación", es "después del salto, la PK del resultado parcial sigue siendo computable y bien definida". En tu caso, el CROSS JOIN con allow produce una PK del resultado parcial igual a {e.empleado, t.trimestre} (unión de las PKs de ambos lados), y el LEFT JOIN siguiente cae limpio en caso A porque asignaciones se accede por su PK completa.
@@ -186,7 +186,7 @@ La opción default debería ser siempre la conservadora: unión de PKs. Solo si 
 > Esperá, hacéme las preguntas de a una así puedo ir contestándolas. Ahora solo contesto lo de las PK. En mi ejemplo `departamento d join empleados e on e.depto = d.depto join pedidos p on e.empleado=p.pempleado join cliente c on c.cliente = p.cliente` Ocurre que las pk son depratamentos(departamento), empleados(empleado), pedidos(pedido) clientes(cliente).
 
 > Entoncoes el primer join está bien porque joinea con d.depto (pk completa)
-El segundo join está bien porque joinea la subquery de la izquiera cuya pk es e.empleado con p.empleado que no es pk. 
+El segundo join está bien porque joinea la subquery de la izquiera cuya pk es e.empleado con p.empleado que no es pk.
 
 > ¿por qué e.empleado es pk del primer join? porque si a departamento entro por pk no necesito agregar la pk de departamento en la pk de empleado, todos los datos de la tabla departamento y todos los campos de empleado que no son pk son dependencias funcionales de la pk de la tabla principal (empleado).
 
@@ -230,7 +230,7 @@ Con eso, tu ejemplo pasa los tres joins sin necesidad de allow, y la PK final qu
 
 > Esto tiene que ser un diálogo donde yo te vaya confirmando las ideas de a una.
 
-> Está mal en el caso genérico vos tenés un arbol que une T1 y T2 (a join b) join (c join d) Lo de izquiera a derecha es un caso particular. 
+> Está mal en el caso genérico vos tenés un arbol que une T1 y T2 (a join b) join (c join d) Lo de izquiera a derecha es un caso particular.
 
 > T1 y T2 son indistinguibles (cada una puede ser una tabla o un join de múltiples niveles) Si T1 es accedida por PK la pk es la de T2, no se unen las pk ni a izquierda ni a derecha.
 
@@ -275,7 +275,7 @@ Los dos son independientes: podés tener allow sin new-pk (si el calculador auto
 
 ¿Confirmás? ¿Y el comportamiento cuando hay allow sin new-pk y el calculador no puede inferir — querés que sea error, warning, o que simplemente desactive validaciones posteriores marcando la PK como "desconocida"?
 
-> Sí. Confirmo. Tiene que dar un error de la misma jerarquía de cuando no hay ningún comentario y algo falla. 
+> Sí. Confirmo. Tiene que dar un error de la misma jerarquía de cuando no hay ningún comentario y algo falla.
 
 > También hay que incluir el uso de USING (field1, field2) en vez de ON  .
 
@@ -476,7 +476,7 @@ Algunas dimensiones a definir:
 Mi sugerencia base:
 
 ```ts
-type ValidationResult = 
+type ValidationResult =
   | { valid: true; resultPk: string[] }
   | { valid: false; errors: ValidationError[] };
 
@@ -498,7 +498,7 @@ Apr 26
 Anotado:
 
 ```ts
-type ValidationResult = 
+type ValidationResult =
   | { valid: true; resultPk: string[] }
   | { valid: false; errors: ValidationError[] };
 
@@ -554,7 +554,7 @@ Ahí lo tenés. Dejé marcadas como "Decisiones pendientes" las cosas que quedar
 
 
 Claude
-Document · MD 
+Document · MD
 > ¿Y se puede bajar esta conversación completa?
 
 6:26 PM

@@ -123,9 +123,9 @@ Lo único ya resuelto: los ítems de menú usan el mismo **widget único de nave
 
 Cubierto conceptualmente dentro de "Entidades" (sección 3.1): una entidad puede ser una vista/query multi-tabla sin mapear 1 a 1 con una tabla física. No se identificó, hasta el momento, una necesidad de tratamiento aparte.
 
-Debería ser fácil generar automáticamente grillas que representen asignaciones entre entidades. Por ejemplo habiendo e entidades materias, docentes y asignación docente (con un renglón por cada asignación entre docentes y materias) tendría que generarse automáticamente una matriz (similar a la tabla dinámica de Excel). Habría que decidir qué hacer si hay más de una campo de dato en la asingación, si no hay ninguno simplemente es true/false. 
+Debería ser fácil generar automáticamente grillas que representen asignaciones entre entidades. Por ejemplo habiendo e entidades materias, docentes y asignación docente (con un renglón por cada asignación entre docentes y materias) tendría que generarse automáticamente una matriz (similar a la tabla dinámica de Excel). Habría que decidir qué hacer si hay más de una campo de dato en la asingación, si no hay ninguno simplemente es true/false.
 
-Otra grilla que puede ser necesario es la que desnormalice listas simples (por ejemplo teléfonos en la tabla personas), que muestre todo en un solo campo pero que al verlo no se confunda el separador de listas con un caracter dentro del dato y al editar también tiene que ser explícita la diferencia. 
+Otra grilla que puede ser necesario es la que desnormalice listas simples (por ejemplo teléfonos en la tabla personas), que muestre todo en un solo campo pero que al verlo no se confunda el separador de listas con un caracter dentro del dato y al editar también tiene que ser explícita la diferencia.
 
 ## 4. Frontend
 

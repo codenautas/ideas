@@ -8,4 +8,4 @@
 
 ## feedback
 
-Usamos **github** para anotar [comentarios y pendiente](https://github.com/codenautas/ideas/issues) y guardar las [fuentes](https://github.com/codenautas/ideas) de estos documentos. 
+Usamos **github** para anotar [comentarios y pendiente](https://github.com/codenautas/ideas/issues) y guardar las [fuentes](https://github.com/codenautas/ideas) de estos documentos.
