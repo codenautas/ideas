@@ -200,3 +200,73 @@ Cualquier elemento de la interfaz que navegue a otra pantalla (botón en una gri
 - Menúes: dónde vive la asociación rol↔menú; si un ítem puede apuntar a pantallas custom.
 - Botón "anterior/siguiente" en pantallas de detalle: ¿existe?, ¿orden canónico de la entidad o de la grilla de origen?
 - Decisión final de lenguaje de implementación (TypeScript vs. Zig vs. otros).
+
+## 8. Propuestas
+
+### 8.1 Generación de Código
+
+Esta propuesta sale de un experimento concreto en Zig, [zigma-definition](https://github.com/hggomez/zigma-definition) (rama `lucas-branch`), que explora la alternativa que la sección 5 deja abierta: escribir el SSOT en Zig y **generar** a partir de él todo lo demás, en tiempo de compilación.
+
+#### Idea
+
+El SSOT son valores `comptime` de Zig (structs literales, sin funciones embebidas, serializables). Un conjunto de generadores, que no conocen ningún sistema concreto, recorren esos valores en tiempo de compilación y producen el código de cada capa como texto plano: el esquema de la base, la capa de datos y el servidor HTTP en TypeScript, y el frontend en HTML + JS. Lo generado no se escribe ni se edita a mano: cambiar el sistema es cambiar su SSOT y regenerar.
+
+Un sistema nuevo es un solo archivo (más, opcionalmente, filas de ejemplo):
+
+```sh
+zig build up -Dsystem=examples/aida.zig -Dseed=examples/aida_seed.sql
+```
+
+Fuera de ese archivo, su seed y los tests, ningún archivo del repositorio nombra al sistema: hasta los nombres de la infraestructura (contenedores, base, volúmenes) se derivan del nombre que declara (`pub const name = "aida"`).
+
+#### Qué se escribe a mano
+
+```zig
+pub const name = "aida";
+
+pub const Fecha = struct { @"año": u16, mes: u8, @"día": u8 };
+
+pub const type_defs = zigma.defineTypes(zigma.merge(.{ zigma.common_type_defs, .{
+    .fecha = zigma.TypeDef{ .Type = Fecha },
+    .email = zigma.common_type_defs.text,
+} }));
+
+pub const clase = zigma.record(type_defs, zigma.merge(.{ zigma.extractPk(cursos), .{
+    .orden = .{ .type = "integer" },
+    .fecha = .{ .type = "fecha" },
+    .tema = .{ .type = "text" },
+} }));
+
+pub const clases = zigma.defineEntity(.{
+    .pk = zigma.mergePk(.{ cursos.pk, .{"orden"} }),
+    .fks = .{ .cursos = .{ .entity = "cursos", .fields = cursos.pk } },
+    .fields = clase,
+});
+```
+
+* **Tipos de dominio** (2.5): cada uno nombra el tipo de Zig que lo respalda, y de ese tipo sale todo lo demás: el intervalo de un entero *es* su rango válido (`u8` → 0..255), y un struct es un tipo compuesto.
+* **Records y entidades** (3.1): campos con `label`, `nullable`, `is_name`, `description`; pk simple o compuesta (claves naturales); uks; fks que referencian la entidad destino **por nombre**, lo que mantiene la definición serializable y permite fks reflexivas y circulares. La herencia de claves se escribe una vez (`extractPk`, `merge`, `mergePk`), como "repetición semántica" (2.2).
+* **Def → Info**: lo que escribe el programador (`Def`, solo lo obligatorio) se completa determinísticamente en una `Info` con todos los defaults explícitos, que es lo que consumen los generadores.
+* **Reglas de dominio**: validaciones escritas una vez en Zig sobre una instancia de un record (`error{...}!void`), declaradas por nombre con `defineRules`.
+
+Los chequeos ocurren **en compilación y en el lugar del error**, con mensajes diseñados: un tipo inexistente, un campo de la pk que no es un campo, una fk a una entidad que no existe o cuyos campos destino no son su pk ni una uk, una regla cuyo parámetro no es la instancia de su record. Un SSOT malformado no compila.
+
+#### Qué se genera
+
+| Capa | Generado desde el SSOT |
+|---|---|
+| Base de datos (Postgres) | Un `CREATE TABLE` por entidad con `PRIMARY KEY`, `UNIQUE`, `FOREIGN KEY` y `NOT NULL`; un `CREATE DOMAIN` que restringe cada entero angosto al intervalo de Zig (`zig_u8`); un `CREATE TYPE` por tipo struct, con un `CHECK` de completitud por columna. |
+| Datos (`dml.ts`) | Por entidad, builders tipados de `INSERT`, `SELECT` por pk, `SELECT` de todas, `UPDATE` y `DELETE`, con sus tests generados. |
+| Servidor (`server.ts`) | Node puro, una ruta explícita por entidad y operación bajo `/api/<entidad>`, la pk en el query string; cada valor del query string y del cuerpo se valida contra su tipo de dominio (400 que nombra el campo). |
+| Frontend | Por entidad: la lista (cada fila enlaza a la suya), la página de una fila, el alta, la modificación (la pk visible pero no editable) y la baja con confirmación. Las URLs espejan las de la API. |
+| Reglas | Las reglas de Zig compiladas a un módulo WASM por sistema, y un `rules.ts` tipado que las llama desde el backend. |
+
+Todo lo generado es código plano.
+
+#### Lo que este enfoque todavía no resuelve
+
+* Cuándo se aplica una regla (qué la dispara): el SSOT declara las reglas, pero no su uso.
+* Las violaciones de pk/uk/fk como errores de dominio (hoy levantan un error genérico).
+* Las fks como combo box con `isName` e `inComboBox` (3.1): hoy son un input de texto.
+* `nullable` en los tipos derivados.
+* Procedimientos (3.2), roles y menúes (3.3), y el estado completo de la grilla en la URL (4.2): no abordados.
